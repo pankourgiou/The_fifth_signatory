@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The Fifth Signatory</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital@0;1&family=Special+Elite&display=swap');
+
+  body {
+    background: #0d0d0d;
+    color: #c9c5bd;
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    display: flex;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  #game {
+    max-width: 680px;
+    width: 100%;
+  }
+  h1 {
+    font-family: 'Special Elite', 'Courier New', monospace;
+    font-size: 22px;
+    font-weight: normal;
+    letter-spacing: 4px;
+    color: #8a8579;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+  }
+  .subtitle {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #555;
+    margin-bottom: 1.25rem;
+    text-transform: uppercase;
+  }
+  .stats {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  .stat {
+    background: #161616;
+    border-radius: 2px;
+    padding: 6px 10px;
+    font-size: 11px;
+    border: 1px solid #2a2a2a;
+    color: #877;
+    letter-spacing: 1px;
+  }
+  .stat span { color: #c9c5bd; }
+  #textbox {
+    background: linear-gradient(180deg, #141414 0%, #111 100%);
+    border: 1px solid #2a2a2a;
+    border-left: 3px solid #4a4339;
+    border-radius: 2px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    line-height: 1.9;
+    font-size: 15px;
+    min-height: 220px;
+    white-space: pre-wrap;
+    position: relative;
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.5);
+  }
+  #textbox::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, transparent 1px, transparent 2px, rgba(255,255,255,0.015) 3px);
+    pointer-events: none;
+    border-radius: 2px;
+  }
+  #text {
+    position: relative;
+    z-index: 1;
+  }
+  .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 14px;
+    background: #c9c5bd;
+    margin-left: 2px;
+    vertical-align: -2px;
+    animation: blink 0.9s step-end infinite;
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+  #choices {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 40px;
+  }
+  button {
+    background: #161616;
+    color: #b8b4ac;
+    border: 1px solid #333;
+    border-left: 3px solid #4a4339;
+    border-radius: 2px;
+    padding: 12px 14px;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    text-align: left;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.4s ease, background 0.15s ease, border-left-color 0.15s ease;
+  }
+  button.visible {
+    opacity: 1;
+  }
+  button:hover {
+    background: #1e1e1e;
+    border-left-color: #8a8579;
+  }
+  button:active {
+    transform: scale(0.99);
+  }
+  .ending {
+    background: #161616;
+    border-left: 3px solid #4a4339;
+    border-radius: 2px;
+    padding: 1rem 1.25rem;
+    font-size: 13px;
+    color: #877;
+    line-height: 1.8;
+    font-style: italic;
+    opacity: 0;
+    animation: fadein 1s ease forwards;
+  }
+  @keyframes fadein {
+    to { opacity: 1; }
+  }
+  .skip-hint {
+    font-size: 10px;
+    color: #444;
+    letter-spacing: 1px;
+    margin-top: 6px;
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+<div id="game">
+  <h1>The Fifth Signatory</h1>
+  <div class="subtitle">a station noir — chapter one</div>
+
+  <div class="stats">
+    <div class="stat">NORDIC <span id="s-nordic">0</span></div>
+    <div class="stat">REPTILIAN <span id="s-rept">0</span></div>
+    <div class="stat">GREY <span id="s-grey">0</span></div>
+    <div class="stat">INSECTOID <span id="s-insect">0</span></div>
+    <div class="stat">SUSPICION <span id="s-suspicion">0</span></div>
+  </div>
+
+  <div id="textbox">
+    <div id="text"></div>
+  </div>
+  <div id="choices"></div>
+  <div class="skip-hint" id="skiphint">click anywhere to skip typing</div>
+</div>
+
+<script>
+const state = { nordic:0, rept:0, grey:0, insect:0, suspicion:0 };
+let typing = false;
+let skipRequested = false;
+
+function render(){
+  document.getElementById('s-nordic').textContent = state.nordic;
+  document.getElementById('s-rept').textContent = state.rept;
+  document.getElementById('s-grey').textContent = state.grey;
+  document.getElementById('s-insect').textContent = state.insect;
+  document.getElementById('s-suspicion').textContent = state.suspicion;
+}
+
+document.body.addEventListener('click', () => {
+  if(typing) skipRequested = true;
+});
+
+function typeText(str, callback){
+  const textEl = document.getElementById('text');
+  textEl.innerHTML = '';
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+
+  typing = true;
+  skipRequested = false;
+  let i = 0;
+
+  function step(){
+    if(skipRequested){
+      textEl.textContent = str;
+      typing = false;
+      cursor.remove();
+      callback();
+      return;
+    }
+    if(i < str.length){
+      textEl.textContent = str.slice(0, i+1);
+      textEl.appendChild(cursor);
+      i++;
+      const ch = str[i-1];
+      let delay = 18;
+      if(ch === '.' || ch === '!' || ch === '?') delay = 280;
+      else if(ch === ',') delay = 120;
+      else if(ch === '\\n') delay = 200;
+      setTimeout(step, delay);
+    } else {
+      typing = false;
+      cursor.remove();
+      callback();
+    }
+  }
+  step();
+}
+
+const nodes = {
+  start: {
+    text: "Five chairs, four species, and one empty seat that's been empty for sixty years.\n\nI'm Vane. Tonight I'm not chasing anyone — I'm guarding a room. The Concord Talks, they call it: the one night a decade when Nordic, Reptilian, Grey and Insectoid delegations sit at the same table on neutral ground, and pretend the last war ended because anyone forgave anyone.\n\nThe fifth chair belongs to nobody. It's been empty since the Armistice — a gesture, a scar kept visible on purpose. Tonight, for the first time in living memory, something is sitting in it.\n\nNot someone. Something. A transmission source, station security tells me, broadcasting from inside the chair itself — origin unknown, frequency unrecognized, age... older than any of the four species currently arguing about whether to leave the room.\n\nThirty minutes ago, the signal said one sentence, in every language on the station simultaneously:\n\n'I am the fifth. I have been waiting for you to remember me.'\n\nThen silence. Now four furious ambassadors, one terrified mediator, and me — because apparently 'detective' is close enough to 'expert' when nobody else wants the job.",
+    choices: [
+      {label:"Question the Grey delegation first — they detected the signal", next:"grey1"},
+      {label:"Question the Nordic delegation — they've gone suspiciously calm", next:"nordic1"}
+    ]
+  },
+
+  grey1: {
+    text: "The Grey delegation occupies the cold end of the room, three of them seated in a perfect line, watching the empty fifth chair with the specific stillness of beings doing a great deal of calculating very quickly.\n\nThe lead delegate doesn't turn when I approach. 'Detective. You'll want to know that we detected the signal four minutes before it spoke. We logged it, flagged it as anomalous, and were in the process of informing the mediator when it... spoke first.'\n\n'Four minutes is a long time to sit on something like that.'\n\n'Four minutes is the time it took to confirm the signal's origin point was not external.' A pause, precisely timed. 'Detective, the signal did not arrive at this station tonight. Our instruments suggest it has been here the entire time. Underneath. Listening. For sixty years.'",
+    choices: [
+      {label:"Ask what 'underneath' means, exactly", next:"grey2", effect:{grey:1}},
+      {label:"Accuse them of sitting on this to gain leverage at the talks", next:"grey2b", effect:{grey:-1, suspicion:1}}
+    ]
+  },
+
+  grey2: {
+    text: "The delegate finally turns, and for a Grey, that's practically theatre.\n\n'Beneath the negotiation chamber is a sealed sub-level, original station construction, pre-dating all four of our arrivals. It was never opened. Never surveyed. The Armistice architects simply built this room on top of it and agreed, as a body, never to ask what was down there.'\n\n'You're telling me the empty chair has been broadcasting from a basement nobody admits exists.'\n\n'I am telling you that the signal's harmonic signature matches structural readings taken from that sub-level sixty years ago — readings that were, at the time, classified by all four delegations jointly. It is the only document in this station's history that all species agreed to bury. Together.'\n\nGrey trust ticks up — they didn't have to tell me that.",
+    choices: [
+      {label:"Ask the Reptilian delegation what they remember about that joint decision", next:"rept1"},
+      {label:"Go straight to the Insectoids — collective memory doesn't classify things the same way", next:"insect1"}
+    ]
+  },
+
+  grey2b: {
+    text: "'Leverage.' The delegate repeats the word like tasting something off. 'Detective, four minutes ago every delegation in this room received the same transmission at the same instant. There is no leverage in simultaneity. There is only what comes next.'\n\nIt's not wrong, and the flicker of genuine offense — rare, for a Grey — costs me a little trust. But the delegate adds, almost as an afterthought, the same fact I'd have gotten either way: the signal's signature matches a sealed sub-level beneath the chamber, surveyed once, sixty years ago, and classified jointly by all four species. The one thing they ever agreed to bury — together.",
+    choices: [
+      {label:"Ask the Reptilian delegation what they remember about that joint decision", next:"rept1"},
+      {label:"Go straight to the Insectoids — collective memory doesn't classify things the same way", next:"insect1"}
+    ]
+  },
+
+  nordic1: {
+    text: "The Nordic delegation is the only one not looking at the empty chair. They're looking at each other — three identical expressions of careful, ancient calm, the kind that takes generations to cultivate and about four seconds to see through if you know what you're looking for.\n\nThe senior delegate inclines her head as I approach. 'Detective Vane. A pleasure, under the circumstances.' Her voice doesn't waver. Her hands, folded in her lap, are gripped tight enough to whiten at the knuckles.\n\n'You don't seem surprised,' I say.\n\n'We are extremely surprised, detective. We are simply old enough not to show it.' A pause, weighted. 'The Armistice was not negotiated in this room by accident. This chamber sits atop the only structure on this station that predates the war — predates, we believe, all four of our civilizations' presence here. We built our peace on top of someone else's house. We always knew, eventually, the owner might come home.'",
+    choices: [
+      {label:"Ask why the Nordics never mentioned this in sixty years of talks", next:"nordic2", effect:{nordic:1}},
+      {label:"Press: 'whose house — do you have a name, a species, anything?'", next:"nordic2b", effect:{nordic:1}}
+    ]
+  },
+
+  nordic2: {
+    text: "'Because mentioning it would have required admitting we knew,' she says, simply, 'and admitting we knew would have required explaining how. The survey sixty years ago wasn't sanctioned by any single delegation. It was done jointly, in secret, in the first year of the Armistice — four exhausted species, freshly at peace, doing one thing together before the suspicion set back in: looking at what we'd built our truce on top of.'\n\n'And you all agreed never to look again.'\n\n'We agreed it was easier to share a guilty secret than to explain a discovery that might restart the war we'd just ended. Four species, one buried readout, and sixty years of silence.' Her grip on her own hands loosens, slightly. 'The signal tonight is not an intruder, detective. It is a debt. And debts, eventually, collect themselves.'\n\nNordic trust rises — she didn't have to give you sixty years of history.",
+    choices: [
+      {label:"Ask the Reptilians for their side of that first joint survey", next:"rept1"},
+      {label:"Go to the Insectoids — ask what the collective remembers from that night", next:"insect1"}
+    ]
+  },
+
+  nordic2b: {
+    text: "'A name.' The delegate's composure flickers — not breaks, but flickers, like a held note going slightly sharp. 'No. We have a designation, recorded in the joint survey sixty years ago and never spoken since: the Builders. Not a name. A description. They built this station's bones before any of the four of us arrived to argue over them.'\n\n'And the survey — whose idea was it?'\n\n'All of ours, and none of ours. The first year of the Armistice, before the suspicion fully set back in — four delegations did one thing together, quietly, before going back to distrusting each other. We looked beneath the chamber. We saw something. We agreed, unanimously, to bury the readout and never discuss it again.'\n\nShe glances, finally, at the empty chair. 'I believe we are about to discuss it again.'",
+    choices: [
+      {label:"Ask the Reptilians for their side of that first joint survey", next:"rept1"},
+      {label:"Go to the Insectoids — ask what the collective remembers from that night", next:"insect1"}
+    ]
+  },
+
+  rept1: {
+    text: "The Reptilian delegation is the loudest room in a building full of people pretending not to be afraid, which — for Reptilians — counts as composure.\n\nThe senior delegate, old enough that his scales have gone the colour of cigarette ash, doesn't wait for my question. 'You want to know about the survey. Everyone always wants to know about the survey, sixty years too late.'\n\n'Were you there?'\n\n'I was young. Junior attache, there to carry equipment and keep my mouth shut — the only useful skill a Reptilian diplomat had in those days.' He bares teeth, not quite a smile. 'Four delegations, one night, one sealed hatch beneath this very chamber. We sent down a single drone with a single camera. It transmitted for eleven seconds before the feed cut.'\n\n'What was on it?'\n\n'Eleven seconds. A chamber, vast, far larger than the station's official schematics allow for. And in the centre of it — a fifth chair. Identical to the one we built sixty years later, up here, as a memorial to nobody.' His ash-grey scales seem to dim further. 'We didn't build the empty chair as a gesture, detective. We built it as a copy.'",
+    choices: [
+      {label:"Ask if anyone kept a copy of that eleven-second feed", next:"rept2", effect:{rept:1}},
+      {label:"This is enough — head to the Insectoids before the talks collapse entirely", next:"insect1", effect:{rept:1}}
+    ]
+  },
+
+  rept2: {
+    text: "The old delegate's ash-coloured scales shift — the Reptilian equivalent of a wince. 'Copies were forbidden. Strictly, jointly, the one law all four species actually enforced for sixty years.' He leans in, voice dropping below the ambient noise. 'But laws and copies are different things, detective. I was young. I was also, in my youth, considerably less obedient than I am required to be tonight.'\n\nHe produces, from inside his formal robes, a data-shard the size of a fingernail — sixty years old, by the wear on its casing, and never, by the look on his face, shown to another living soul until this moment.\n\n'Eleven seconds, detective. I have watched them more times than I will admit. I have never understood them. Perhaps, tonight, that changes.'\n\nReptilian trust rises sharply — this is a confession, not just information.",
+    choices: [
+      {label:"Take the shard and head to the Insectoids — collective memory might decode what the camera couldn't", next:"insect1", effect:{rept:1}}
+    ]
+  },
+
+  insect1: {
+    text: "The Insectoid delegation doesn't sit in chairs. They occupy a low circular dais, a dozen workers in constant slow motion, weaving in and out of a central 'voice' the way the collective always seems to need a focal point for things too large to be said by one body.\n\nThe voice turns to me before I speak. 'You carry questions about the survey. We feel them on you — sixty years old, and still warm.'\n\n'You were there too?'\n\n'We are always there. We do not forget the way your species forgets — in pieces, through generations, until only a feeling remains where a fact used to be. We remember the eleven seconds whole. We remember the chamber below. We remember the chair.' The hum around the dais drops, the same wrong-quiet I've felt before, somewhere else, in another case, another door. 'And we remember what the drone's camera did not transmit, because by then, the chamber below had stopped being empty.'",
+    choices: [
+      {label:"Ask what the camera saw, that the feed didn't show", next:"insect2"},
+      {label:"Ask whether the signal tonight is the same presence from sixty years ago", next:"insect2b"}
+    ]
+  },
+
+  insect2: {
+    text: "The voice's compound eyes catch the chamber's low light, fracturing my own reflection into a hundred small, watching versions of myself.\n\n'The drone's camera transmitted eleven seconds because on the twelfth second, something in the chamber below looked directly at the lens. Not toward it — at it. As though it had been waiting for something to arrive that could see it back.' A pause, the hum dropping further, the whole dais going very still. 'The feed did not cut due to malfunction, detective. It cut because the signal was, in that moment, no longer being sent. It was being returned.'\n\n'Returned where?'\n\n'Here. To this room. Sixty years ago, something looked into a camera in a sealed chamber beneath this station — and on the other end of that look, in this very room, four delegations felt watched.' The voice's mandibles click, slow, almost gentle. 'That is why the survey was buried, detective. Not because of what we saw. Because of what saw us.'\n\nThe room behind you has gone very quiet. The empty chair — the fifth chair — is no longer empty.",
+    end:true,
+    effect:{insect:2},
+    ending:"chapter1_returned"
+  },
+
+  insect2b: {
+    text: "'Same.' The voice doesn't hesitate. 'We told you — we remember whole, not in pieces. The presence in the chamber below has not changed, has not moved, has not aged in sixty years of our reckoning. What has changed is us. Sixty years ago, four young, exhausted, frightened species buried a discovery and called it peace.'\n\n'Tonight?'\n\n'Tonight, the discovery has decided sixty years is long enough to wait for an answer.' The hum around the dais shifts — something that might, in an Insectoid, be the equivalent of dread, or might be anticipation; the collective doesn't always distinguish. 'It did not break through the seal tonight, detective. It was invited. By the survey. By the silence afterward. By every year the four of us sat in this room, at this table, with one chair kept deliberately, symbolically, hauntingly empty.'\n\nThe voice turns, finally, toward the chamber behind you — toward the fifth chair.\n\n'We built it a door, detective, and called it a memorial. Tonight, it walked through.'",
+    end:true,
+    effect:{insect:2},
+    ending:"chapter1_door"
+  }
+};
+
+const endings = {
+  chapter1_returned: "End of chapter one. Whatever sat in that chair sixty years ago has been looking back the entire time — through eleven seconds of buried footage, through sixty years of careful silence, through four species too afraid of war to ask what they'd actually found. Now it's not in the chamber below anymore. It's in the room. And for the first time tonight, every delegation — Nordic, Reptilian, Grey, Insectoid — is looking at the same thing, at the same time, with the same expression.\n\n...the fifth chair is no longer empty.",
+  chapter1_door: "End of chapter one. Sixty years of an empty chair wasn't a memorial — it was an invitation, and tonight, something finally accepted it. Four species who spent six decades agreeing not to look beneath their own peace table are about to find out what happens when the thing they buried decides the silence has gone on long enough.\n\n...the fifth chair is no longer empty."
+};
+
+function applyEffect(effect){
+  if(!effect) return;
+  for(const k in effect){ state[k] = (state[k]||0) + effect[k]; }
+}
+
+function showNode(key){
+  const node = nodes[key];
+  const choicesEl = document.getElementById('choices');
+  const skipHint = document.getElementById('skiphint');
+  choicesEl.innerHTML = '';
+  skipHint.style.opacity = '1';
+
+  typeText(node.text, () => {
+    skipHint.style.opacity = '0';
+
+    if(node.end){
+      applyEffect(node.effect);
+      render();
+      const endDiv = document.createElement('div');
+      endDiv.className = 'ending';
+      endDiv.textContent = endings[node.ending];
+      choicesEl.appendChild(endDiv);
+      return;
+    }
+
+    node.choices.forEach((choice, idx) => {
+      const btn = document.createElement('button');
+      btn.textContent = choice.label;
+      btn.onclick = () => {
+        applyEffect(choice.effect);
+        render();
+        showNode(choice.next);
+      };
+      choicesEl.appendChild(btn);
+      setTimeout(() => btn.classList.add('visible'), idx * 150);
+    });
+  });
+}
+
+render();
+showNode('start');
+</script>
+</body>
+</html>
